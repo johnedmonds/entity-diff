@@ -3,10 +3,11 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use std::rc::Weak;
 
-#[derive(Copy)]
+#[derive(Copy, Debug)]
 enum Edit<'a, T: 'a + Eq> {
     Insert(&'a T),
     Delete,
+    InsertAndDelete(&'a T),
     Keep
 }
 
@@ -15,7 +16,8 @@ impl<'a, T: 'a + Eq> Clone for Edit<'a, T> {
         match self {
             Edit::Insert(t) => Edit::Insert(t),
             Edit::Delete => Edit::Delete,
-            Edit::Keep => Edit::Keep
+            Edit::Keep => Edit::Keep,
+            Edit::InsertAndDelete(t) => Edit::InsertAndDelete(t)
         }
     }
 }
@@ -37,7 +39,7 @@ impl<'a, T: 'a + Eq> GridSquare<'a, T> {
     }
 }
 
-fn diff<'a, T: Eq>(a: &Vec<T>, b: &Vec<T>) -> Vec<Edit<'a, T>> {
+fn diff<'a, T: Eq>(a: &'a Vec<T>, b: &'a Vec<T>) -> Vec<Edit<'a, T>> {
     let grid: Vec<Vec<Rc<RefCell<GridSquare<'a, T>>>>> = (0..a.len() + 1).map(|_a| {
         return (0..b.len() + 1).map(|_b| {
             return Rc::new(RefCell::new(GridSquare{
@@ -56,7 +58,7 @@ fn diff<'a, T: Eq>(a: &Vec<T>, b: &Vec<T>) -> Vec<Edit<'a, T>> {
             let deletion_cost = 1 + deletion.borrow().cost;
             let insertion_cost = 1 + insertion.borrow().cost;
 
-            let insertion_and_deletion_cost = if a[i] == b[j] {
+            let insertion_and_deletion_cost = if a[i - 1] == b[j - 1] {
                 insertion_and_deletion.borrow().cost
             } else {
                 2 + insertion_and_deletion.borrow().cost
@@ -69,12 +71,19 @@ fn diff<'a, T: Eq>(a: &Vec<T>, b: &Vec<T>) -> Vec<Edit<'a, T>> {
             if insertion_cost == min_cost {
                 current_grid_square.cost = insertion_cost;
                 current_grid_square.from = Some(Rc::downgrade(&insertion));
+                current_grid_square.edit = Edit::Insert(&b[j - 1]);
             } else if deletion_cost == min_cost {
                 current_grid_square.cost = deletion_cost;
                 current_grid_square.from = Some(Rc::downgrade(&deletion));
+                current_grid_square.edit = Edit::Delete;
             } else {
                 current_grid_square.cost = insertion_and_deletion_cost;
                 current_grid_square.from = Some(Rc::downgrade(&insertion_and_deletion));
+                current_grid_square.edit = if a[i - 1] == b[j - 1] {
+                    Edit::Keep
+                } else {
+                    Edit::InsertAndDelete(&b[j - 1])
+                }
             }
         }
     }
@@ -83,5 +92,11 @@ fn diff<'a, T: Eq>(a: &Vec<T>, b: &Vec<T>) -> Vec<Edit<'a, T>> {
 }
 
 fn main() {
-    println!("Hello, world!");
+    let a = "abc";
+    let b = "bcd";
+    let a_vec: Vec<char> = a.chars().collect();
+    let b_vec: Vec<char> = b.chars().collect();
+
+    let diff_vec = diff(&a_vec, &b_vec);
+    println!("{:?}", diff_vec);
 }
