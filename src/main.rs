@@ -3,8 +3,8 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use std::rc::Weak;
 
-#[derive(Copy, Debug)]
-enum Edit<'a, T: 'a + Eq> {
+#[derive(Copy, Debug, Eq, PartialEq)]
+pub enum Edit<'a, T: 'a + Eq> {
     Insert(&'a T),
     Delete,
     InsertAndDelete(&'a T),
@@ -39,7 +39,7 @@ impl<'a, T: 'a + Eq> GridSquare<'a, T> {
     }
 }
 
-fn diff<'a, T: Eq>(a: &'a Vec<T>, b: &'a Vec<T>) -> Vec<Edit<'a, T>> {
+pub fn diff<'a, T: Eq>(a: &'a Vec<T>, b: &'a Vec<T>) -> Vec<Edit<'a, T>> {
     let grid: Vec<Vec<Rc<RefCell<GridSquare<'a, T>>>>> = (0..a.len() + 1).map(|_a| {
         return (0..b.len() + 1).map(|_b| {
             return Rc::new(RefCell::new(GridSquare{
@@ -99,4 +99,20 @@ fn main() {
 
     let diff_vec = diff(&a_vec, &b_vec);
     println!("{:?}", diff_vec);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn assert_diff(a: &str, b: &str, edits: Vec<Edit<char>>) {
+        let a_vec: Vec<char> = a.chars().collect();
+        let b_vec: Vec<char> = b.chars().collect();
+        assert_eq!(edits, diff(&a_vec, &b_vec));
+    }
+
+    #[test]
+    fn insert() {
+        let c = 'd';
+        assert_diff("abc", "bcd", vec![Edit::Keep, Edit::Keep, Edit::Insert(&c)]);
+    }
 }
