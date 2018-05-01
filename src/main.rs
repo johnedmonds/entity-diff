@@ -7,7 +7,6 @@ use std::rc::Weak;
 pub enum Edit<'a, T: 'a + Eq> {
     Insert(&'a T),
     Delete,
-    InsertAndDelete(&'a T),
     Keep
 }
 
@@ -17,7 +16,6 @@ impl<'a, T: 'a + Eq> Clone for Edit<'a, T> {
             Edit::Insert(t) => Edit::Insert(t),
             Edit::Delete => Edit::Delete,
             Edit::Keep => Edit::Keep,
-            Edit::InsertAndDelete(t) => Edit::InsertAndDelete(t)
         }
     }
 }
@@ -51,39 +49,48 @@ pub fn diff<'a, T: Eq>(a: &'a Vec<T>, b: &'a Vec<T>) -> Vec<Edit<'a, T>> {
     }).collect::<Vec<Vec<Rc<RefCell<GridSquare<'a, T>>>>>>();
 
     for i in 1..a.len() + 1 {
+        let mut grid_square = grid[i][0].borrow_mut();
+        grid_square.cost = i as i32;
+        grid_square.from = Some(Rc::downgrade(&grid[i - 1][0]));
+        grid_square.edit = Edit::Delete;
+    }
+
+    for j in 1..b.len() + 1 {
+        let mut grid_square = grid[0][j].borrow_mut();
+        grid_square.cost = j as i32;
+        grid_square.from = Some(Rc::downgrade(&grid[0][j - 1]));
+        grid_square.edit = Edit::Insert(&b[j - 1]);
+    }
+
+    for i in 1..a.len() + 1 {
         for j in 1..b.len() + 1 {
-            let deletion = &grid[i - 1][j];
-            let insertion = &grid[i][j - 1];
-            let insertion_and_deletion = &grid[i - 1][j - 1];
-            let deletion_cost = 1 + deletion.borrow().cost;
-            let insertion_cost = 1 + insertion.borrow().cost;
+            let deletion_cell = &grid[i - 1][j];
+            let insertion_cell = &grid[i][j - 1];
+            let keep_cell = &grid[i - 1][j - 1];
+            let deletion_cost = 1 + deletion_cell.borrow().cost;
+            let insertion_cost = 1 + insertion_cell.borrow().cost;
+            let keep_cost = keep_cell.borrow().cost;
 
-            let insertion_and_deletion_cost = if a[i - 1] == b[j - 1] {
-                insertion_and_deletion.borrow().cost
+            let min_cost = if a[i - 1] == b[j - 1] {
+                min(min(insertion_cost, deletion_cost), keep_cost)
             } else {
-                2 + insertion_and_deletion.borrow().cost
+                min(insertion_cost, deletion_cost)
             };
-
-            let min_cost = min(min(insertion_cost, deletion_cost), insertion_and_deletion_cost);
 
             let mut current_grid_square = grid[i][j].borrow_mut();
 
             if insertion_cost == min_cost {
                 current_grid_square.cost = insertion_cost;
-                current_grid_square.from = Some(Rc::downgrade(&insertion));
+                current_grid_square.from = Some(Rc::downgrade(insertion_cell));
                 current_grid_square.edit = Edit::Insert(&b[j - 1]);
             } else if deletion_cost == min_cost {
                 current_grid_square.cost = deletion_cost;
-                current_grid_square.from = Some(Rc::downgrade(&deletion));
+                current_grid_square.from = Some(Rc::downgrade(deletion_cell));
                 current_grid_square.edit = Edit::Delete;
             } else {
-                current_grid_square.cost = insertion_and_deletion_cost;
-                current_grid_square.from = Some(Rc::downgrade(&insertion_and_deletion));
-                current_grid_square.edit = if a[i - 1] == b[j - 1] {
-                    Edit::Keep
-                } else {
-                    Edit::InsertAndDelete(&b[j - 1])
-                }
+                current_grid_square.cost = keep_cost;
+                current_grid_square.from = Some(Rc::downgrade(keep_cell));
+                current_grid_square.edit = Edit::Keep;
             }
         }
     }
@@ -111,8 +118,53 @@ mod tests {
     }
 
     #[test]
-    fn insert() {
+    fn insert_start() {
+        let c = 'a';
+        assert_diff("b", "ab", vec![Edit::Insert(&c), Edit::Keep]);
+    }
+
+    #[test]
+    fn insert_mid() {
+        let c = 'b';
+        assert_diff("ac", "abc", vec![Edit::Keep, Edit::Insert(&c), Edit::Keep]);
+    }
+
+    #[test]
+    fn insert_end() {
+        let c = 'b';
+        assert_diff("a", "ab", vec![Edit::Keep, Edit::Insert(&c)]);
+    }
+
+    #[test]
+    fn delete_start() {
+        assert_diff("ab", "b", vec![Edit::Delete, Edit::Keep]);
+    }
+
+    #[test]
+    fn delete_mid() {
+        assert_diff("abc", "ac", vec![Edit::Keep, Edit::Delete, Edit::Keep]);
+    }
+
+    #[test]
+    fn delete_end() {
+        assert_diff("ab", "a", vec![Edit::Keep, Edit::Delete]);
+    }
+
+    #[test]
+    fn change_start() {
+        let c = 'c';
+        assert_diff("ab", "cb", vec![Edit::Delete, Edit::Insert(&c), Edit::Keep]);
+    }
+
+    #[test]
+    fn change_mid() {
         let c = 'd';
-        assert_diff("abc", "bcd", vec![Edit::Keep, Edit::Keep, Edit::Insert(&c)]);
+        assert_diff("abc", "adc", vec![Edit::Keep, Edit::Delete, Edit::Insert(&c), Edit::Keep]);
+    }
+
+    #[test]
+    fn change_end() {
+        let c = 'c';
+        assert_diff("ab", "ac", vec![Edit::Keep, Edit::Delete, Edit::Insert(&c)]);
     }
 }
