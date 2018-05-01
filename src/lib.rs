@@ -98,16 +98,6 @@ pub fn diff<'a, T: Eq>(a: &'a Vec<T>, b: &'a Vec<T>) -> Vec<Edit<'a, T>> {
     return grid[a.len()][b.len()].borrow().path();
 }
 
-fn main() {
-    let a = "abc";
-    let b = "bcd";
-    let a_vec: Vec<char> = a.chars().collect();
-    let b_vec: Vec<char> = b.chars().collect();
-
-    let diff_vec = diff(&a_vec, &b_vec);
-    println!("{:?}", diff_vec);
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
