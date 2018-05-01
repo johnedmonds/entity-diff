@@ -3,10 +3,18 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use std::rc::Weak;
 
+/// A transformation to an index in a vector.
+/// 
+/// There will be an edit for each character in the input string. Keep means keep the entity in the output, Delete means remove it, and Insert means add something at this index.
+/// 
+/// When we say "current position," consider copying the original string into an output vector, current position is the end of that vector.
 #[derive(Copy, Debug, Eq, PartialEq)]
 pub enum Edit<'a, T: 'a + Eq> {
+    /// Add an element at the current position.
     Insert(&'a T),
+    /// Delete the element from the input vector.
     Delete,
+    /// Keep the original character in the output.
     Keep
 }
 
@@ -37,6 +45,9 @@ impl<'a, T: 'a + Eq> GridSquare<'a, T> {
     }
 }
 
+/// Returns the edits required to change `a` into `b`
+/// 
+/// Edits are applied to each character in `a`. See `Edit` to determine what each type of Edit does.
 pub fn diff<'a, T: Eq>(a: &'a Vec<T>, b: &'a Vec<T>) -> Vec<Edit<'a, T>> {
     let grid: Vec<Vec<Rc<RefCell<GridSquare<'a, T>>>>> = (0..a.len() + 1).map(|_a| {
         return (0..b.len() + 1).map(|_b| {
